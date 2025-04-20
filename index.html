@@ -8,10 +8,12 @@
     <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
   </head>
   <body
-    class="bg-gradient-to-br from-indigo-100 to-white min-h-screen flex items-center justify-center px-4"
+    class="bg-gradient-to-br from-indigo-100 to-white min-h-screen flex items-center justify-center md:px-4"
   >
-    <div class="w-4/5 mx-auto bg-white rounded-2xl shadow-2xl p-8">
-      <h1 class="text-3xl font-bold text-center text-indigo-600 mb-8">
+    <div class="md:w-4/5 md:mx-auto bg-white rounded-2xl shadow-2xl md:p-8">
+      <h1
+        class="text-lg md:text-3xl font-bold text-center text-indigo-600 my-2 md:my-8"
+      >
         🧠 LDA Topic Probabilities Calculator
       </h1>
 
@@ -106,10 +108,10 @@
       </div>
 
       <!-- Calculate Button -->
-      <div class="mt-8">
+      <div class="md:mt-8">
         <button
           id="calculate"
-          class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg shadow-md transition duration-200"
+          class="w-4/5 mx-auto md:w-full py-3 flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg shadow-md transition duration-200"
         >
           🔍 Calculate Probabilities
         </button>
