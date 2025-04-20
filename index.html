@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LDA Topic Probabilities Calculator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
+  </head>
+  <body class="bg-gray-100 min-h-screen flex items-center justify-center">
+    <div class="container mx-auto p-6 max-w-3xl bg-white rounded-lg shadow-lg">
+      <h1 class="text-2xl font-bold text-center mb-6">
+        LDA Topic Probabilities Calculator
+      </h1>
+
+      <!-- Documents Input -->
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700"
+          >Documents (one per line, words separated by spaces)</label
+        >
+        <textarea
+          id="documents"
+          class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+          rows="4"
+          placeholder="lion hunts gazelle savanna&#10;elephants giraffes live africa&#10;soccer players score goals stadium"
+        ></textarea>
+      </div>
+
+      <!-- Initial Assignments Input -->
+      <div class="mb-4">
+        <label class="block text-sm font-medium text-gray-700"
+          >Initial Topic Assignments (one per line, numbers separated by
+          spaces)</label
+        >
+        <textarea
+          id="initialAssignments"
+          class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+          rows="4"
+          placeholder="0 0 0 1&#10;0 0 0 1&#10;1 1 1 1 1"
+        ></textarea>
+      </div>
+
+      <!-- Target Document and Word Selection -->
+      <div class="mb-4 flex space-x-4">
+        <div class="flex-1">
+          <label class="block text-sm font-medium text-gray-700"
+            >Target Document Index</label
+          >
+          <input
+            id="targetDocIndex"
+            type="number"
+            min="0"
+            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            value="0"
+          />
+        </div>
+        <div class="flex-1">
+          <label class="block text-sm font-medium text-gray-700"
+            >Target Word</label
+          >
+          <select
+            id="targetWord"
+            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+          >
+            <option value="">Select a word</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Alpha and Beta Inputs -->
+      <div class="mb-4 flex space-x-4">
+        <div class="flex-1">
+          <label class="block text-sm font-medium text-gray-700">Alpha</label>
+          <input
+            id="alpha"
+            type="number"
+            step="0.01"
+            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            value="0.1"
+          />
+        </div>
+        <div class="flex-1">
+          <label class="block text-sm font-medium text-gray-700">Beta</label>
+          <input
+            id="beta"
+            type="number"
+            step="0.01"
+            class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            value="0.01"
+          />
+        </div>
+      </div>
+
+      <!-- Calculate Button -->
+      <div class="mb-4">
+        <button
+          id="calculate"
+          class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        >
+          Calculate Probabilities
+        </button>
+      </div>
+
+      <!-- Results Display -->
+      <div id="results" class="mt-4 p-4 bg-gray-50 rounded-md hidden">
+        <h2 class="text-lg font-semibold">Results</h2>
+        <div id="calculations" class="mt-2"></div>
+      </div>
+
+      <!-- Error Display -->
+      <div
+        id="error"
+        class="mt-4 p-4 bg-red-50 text-red-700 rounded-md hidden"
+      ></div>
+    </div>
+
+    <script>
+      let pyodide;
+      let pythonCode;
+
+      async function loadPyodideAndPackages() {
+        pyodide = await loadPyodide();
+        await pyodide.loadPackage("numpy");
+        // Load the Python code
+        pythonCode = `
+import numpy as np
+
+def calculate_topic_probabilities(documents, initial_assignments, target_doc_index, target_word, alpha, beta):
+    vocabulary = sorted(set(word for doc in documents for word in doc))
+    num_topics = len(set(topic for doc_assignments in initial_assignments for topic in doc_assignments))
+    V = len(vocabulary)
+    
+    document_topic_counts = np.zeros((len(documents), num_topics))
+    topic_word_counts = np.zeros((num_topics, V))
+    
+    for doc_idx, doc in enumerate(documents):
+        for word_idx, word in enumerate(doc):
+            topic = initial_assignments[doc_idx][word_idx]
+            word_index_in_vocabulary = vocabulary.index(word)
+            document_topic_counts[doc_idx, topic] += 1
+            topic_word_counts[topic, word_index_in_vocabulary] += 1
+    
+    try:
+        target_word_index_in_doc = documents[target_doc_index].index(target_word)
+    except ValueError:
+        raise ValueError(f"Target word '{target_word}' not found in document {target_doc_index}")
+    
+    topic_probabilities = {}
+    total_probability = 0
+    
+    for topic in range(num_topics):
+        word_index_in_vocabulary = vocabulary.index(target_word)
+        n_k_wi_excluding_current = topic_word_counts[topic, word_index_in_vocabulary]
+        if initial_assignments[target_doc_index][target_word_index_in_doc] == topic:
+            n_k_wi_excluding_current -= 1
+        
+        n_k_dot_excluding_current = np.sum(topic_word_counts[topic, :])
+        if initial_assignments[target_doc_index][target_word_index_in_doc] == topic:
+            n_k_dot_excluding_current -= 1
+        
+        n_d_k_excluding_current = document_topic_counts[target_doc_index, topic]
+        if initial_assignments[target_doc_index][target_word_index_in_doc] == topic:
+            n_d_k_excluding_current -= 1
+        
+        n_d_dot_excluding_current = len(documents[target_doc_index]) - 1
+        
+        probability = (n_k_wi_excluding_current + beta) / (n_k_dot_excluding_current + V * beta) * \
+                      (n_d_k_excluding_current + alpha) / (n_d_dot_excluding_current + num_topics * alpha)
+        
+        topic_probabilities[topic] = probability
+        total_probability += probability
+    
+    normalized_probabilities = {topic: prob / total_probability for topic, prob in topic_probabilities.items()}
+    
+    return topic_probabilities, normalized_probabilities
+`;
+        await pyodide.runPythonAsync(pythonCode);
+      }
+
+      function updateWordDropdown() {
+        const documentsInput = document
+          .getElementById("documents")
+          .value.trim();
+        const targetDocIndex =
+          parseInt(document.getElementById("targetDocIndex").value) || 0;
+        const targetWordSelect = document.getElementById("targetWord");
+        targetWordSelect.innerHTML = '<option value="">Select a word</option>';
+
+        if (documentsInput) {
+          const documents = documentsInput
+            .split("\n")
+            .map((line) => line.trim().split(/\s+/));
+          if (documents[targetDocIndex]) {
+            documents[targetDocIndex].forEach((word) => {
+              const option = document.createElement("option");
+              option.value = word;
+              option.textContent = word;
+              targetWordSelect.appendChild(option);
+            });
+          }
+        }
+      }
+
+      async function calculateProbabilities() {
+        const documentsInput = document
+          .getElementById("documents")
+          .value.trim();
+        const assignmentsInput = document
+          .getElementById("initialAssignments")
+          .value.trim();
+        const targetDocIndex = parseInt(
+          document.getElementById("targetDocIndex").value
+        );
+        const targetWord = document.getElementById("targetWord").value;
+        const alpha = parseFloat(document.getElementById("alpha").value);
+        const beta = parseFloat(document.getElementById("beta").value);
+        const resultsDiv = document.getElementById("results");
+        const calculationsDiv = document.getElementById("calculations");
+        const errorDiv = document.getElementById("error");
+
+        // Reset displays
+        resultsDiv.classList.add("hidden");
+        errorDiv.classList.add("hidden");
+        calculationsDiv.innerHTML = "";
+        errorDiv.innerHTML = "";
+
+        if (
+          !documentsInput ||
+          !assignmentsInput ||
+          !targetWord ||
+          isNaN(targetDocIndex) ||
+          isNaN(alpha) ||
+          isNaN(beta)
+        ) {
+          errorDiv.textContent = "Please fill in all fields correctly.";
+          errorDiv.classList.remove("hidden");
+          return;
+        }
+
+        try {
+          // Parse inputs
+          const documents = documentsInput
+            .split("\n")
+            .map((line) => line.trim().split(/\s+/));
+          const initialAssignments = assignmentsInput
+            .split("\n")
+            .map((line) => line.trim().split(/\s+/).map(Number));
+
+          // Validate inputs
+          if (
+            documents.length !== initialAssignments.length ||
+            targetDocIndex >= documents.length
+          ) {
+            throw new Error(
+              "Invalid document index or mismatched document and assignment counts."
+            );
+          }
+          for (let i = 0; i < documents.length; i++) {
+            if (documents[i].length !== initialAssignments[i].length) {
+              throw new Error(
+                `Document ${i} and its assignments have different lengths.`
+              );
+            }
+          }
+
+          // Run Python code
+          const pythonRunCode = `
+documents = ${JSON.stringify(documents)}
+initial_assignments = ${JSON.stringify(initialAssignments)}
+target_doc_index = ${targetDocIndex}
+target_word = "${targetWord}"
+alpha = ${alpha}
+beta = ${beta}
+
+unnormalized_probabilities, normalized_probabilities = calculate_topic_probabilities(
+    documents, initial_assignments, target_doc_index, target_word, alpha, beta
+)
+(unnormalized_probabilities, normalized_probabilities)
+`;
+          const result = await pyodide.runPythonAsync(pythonRunCode);
+          const [unnormalized, normalized] = result.toJs();
+
+          // Display results
+          let totalUnnormalized = 0;
+          for (const [, value] of unnormalized) {
+            totalUnnormalized += value;
+          }
+          const unnormalizedTerms = Array.from(unnormalized)
+            .map(([, value]) => value.toFixed(7))
+            .join(" + ");
+          let output = `<p><strong>Calculations:</strong></p>`;
+          output += `<p>Total = ${unnormalizedTerms} = ${totalUnnormalized.toFixed(
+            7
+          )}</p>`;
+          output += `<p>`;
+          for (const [topic, prob] of unnormalized) {
+            const normProb = normalized.get(topic);
+            output += `P(Topic ${topic}) = ${prob.toFixed(
+              7
+            )} / ${totalUnnormalized.toFixed(7)} ≈ ${normProb.toFixed(3)} (${(
+              normProb * 100
+            ).toFixed(1)}%)<br>`;
+          }
+          output += `</p>`;
+
+          calculationsDiv.innerHTML = output;
+          resultsDiv.classList.remove("hidden");
+        } catch (e) {
+          errorDiv.textContent = `Error: ${e.message}`;
+          errorDiv.classList.remove("hidden");
+        }
+      }
+
+      // Event Listeners
+      document
+        .getElementById("documents")
+        .addEventListener("input", updateWordDropdown);
+      document
+        .getElementById("targetDocIndex")
+        .addEventListener("change", updateWordDropdown);
+      document
+        .getElementById("calculate")
+        .addEventListener("click", calculateProbabilities);
+      document.getElementById("targetWord").addEventListener("change", () => {
+        if (document.getElementById("targetWord").value) {
+          calculateProbabilities();
+        }
+      });
+
+      // Initialize
+      loadPyodideAndPackages().then(() => {
+        updateWordDropdown();
+      });
+    </script>
+  </body>
+</html>
