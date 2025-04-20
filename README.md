@@ -22,7 +22,7 @@ No installation is required as the application runs entirely in the browser usin
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/your-username/lda-topic-probabilities-calculator.git
+   git clone https://github.com/sakibnjr/py_LDA.git
    ```
 
 2. Open index.html in a web browser directly, or serve it using a local server (e.g., with Python):
